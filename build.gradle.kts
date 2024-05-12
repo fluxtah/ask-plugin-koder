@@ -19,7 +19,11 @@ dependencies {
     implementation("com.github.fluxtah:ask-plugin-sdk:0.6.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+
     implementation("org.gradle:gradle-tooling-api:8.4")
+
+    implementation("org.apache.lucene:lucene-core:8.11.0")
+    implementation("org.apache.lucene:lucene-analyzers-common:8.11.0")
 
     testImplementation(kotlin("test"))
 }

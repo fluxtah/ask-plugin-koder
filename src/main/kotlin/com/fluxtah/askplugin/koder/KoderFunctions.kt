@@ -8,10 +8,26 @@ package com.fluxtah.askplugin.koder
 
 import com.fluxtah.askpluginsdk.Fun
 import com.fluxtah.askpluginsdk.FunParam
+import com.fluxtah.askpluginsdk.io.getCurrentWorkingDirectory
 import com.fluxtah.askpluginsdk.logging.AskLogger
 import com.fluxtah.askpluginsdk.logging.LogLevel
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.apache.lucene.analysis.standard.StandardAnalyzer
+import org.apache.lucene.document.Document
+import org.apache.lucene.document.Field
+import org.apache.lucene.document.StringField
+import org.apache.lucene.document.TextField
+import org.apache.lucene.index.DirectoryReader
+import org.apache.lucene.index.IndexWriter
+import org.apache.lucene.index.IndexWriterConfig
+import org.apache.lucene.index.Term
+import org.apache.lucene.search.FuzzyQuery
+import org.apache.lucene.search.IndexSearcher
+import org.apache.lucene.search.Query
+import org.apache.lucene.search.TermQuery
+import org.apache.lucene.store.Directory
+import org.apache.lucene.store.RAMDirectory
 import org.gradle.tooling.GradleConnector
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -22,6 +38,73 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
     init {
         // Ensure the base directory exists
         File(baseDir).mkdirs()
+    }
+
+    @Fun("Searches for indexed code in a software project in the current directory")
+    fun searchIndexedCode(
+        @FunParam("The text to search the index with")
+        searchText: String
+    ): String {
+        val analyzer = StandardAnalyzer()
+        val index: Directory = RAMDirectory()
+        val config = IndexWriterConfig(analyzer)
+        val includeExtensions = setOf(
+            "java", "kt", "js", "html", "css",
+            "txt", "kts", "gradle", "c", "cpp", "h", "hpp",
+            "py", "rb", "php", "sh", "json", "xml", "yml", "yaml",
+            "md", "sql", "groovy", "swift", "go", "dart", "ts", "tsx",
+            "cs", "fs", "fsx", "fsi", "rs", "rs.in", "rslib", "rslib.in",
+            "clj", "cljs", "cljc", "edn", "rkt", "scm", "ss", "sld", "sch"
+        )
+
+        IndexWriter(index, config).use { writer ->
+            val currentWorkingDir = File(getCurrentWorkingDirectory())
+            currentWorkingDir.walk()
+                .filter { it.isFile && !it.absolutePath.contains("/.") && includeExtensions.contains(it.extension) }
+                .forEach { file ->
+                    println("Indexing file: ${file.path}")
+                    val doc = Document()
+                    // Calculate relative path from basePath
+                    val relativePath = file.toRelativeString(currentWorkingDir)
+                    println("Relative path: $relativePath")
+                    doc.add(TextField("Content", file.readText(), Field.Store.YES))
+                    doc.add(StringField("path", relativePath, Field.Store.YES))  // Store the relative path
+                    writer.addDocument(doc)
+                }
+        }
+
+        // Search
+        DirectoryReader.open(index).use { reader ->
+            val searcher = IndexSearcher(reader)
+            // Example: 'searchText' will be matched fuzzily
+            val term = Term("Content", searchText.toLowerCase())  // Lowercase to match analyzer behavior
+            val query: Query = FuzzyQuery(term, 2)  // '2' is the maximum edit distance allowed
+
+            val hits = searcher.search(query, 10)  // search for the top 10 results
+
+            val results = hits.scoreDocs.map { scoreDoc ->
+                val doc = searcher.doc(scoreDoc.doc)
+                mapOf(
+                    "path" to doc.get("path"),  // Include the path in the result
+                    "content" to doc.get("Content")
+                )
+            }
+
+            if (results.isNotEmpty()) {
+                return Json.encodeToString(
+                    mapOf(
+                        "results" to results
+                    )
+                )
+            }
+        }
+
+        return Json.encodeToString(
+            mapOf(
+                "created" to "false",
+                "result" to "No results found"
+            )
+        )
     }
 
     private fun getSafeFile(path: String): File {
