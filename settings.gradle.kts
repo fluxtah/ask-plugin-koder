@@ -10,6 +10,6 @@ pluginManagement {
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "0.5.0"
 }
-rootProject.name = "hello"
-// includeBuild("../ask-plugin-sdk")
+rootProject.name = "ask-plugin-koder"
+includeBuild("../ask-plugin-sdk")
 
