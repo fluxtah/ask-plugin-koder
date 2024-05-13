@@ -77,7 +77,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         DirectoryReader.open(index).use { reader ->
             val searcher = IndexSearcher(reader)
             // Example: 'searchText' will be matched fuzzily
-            val term = Term("Content", searchText.toLowerCase())  // Lowercase to match analyzer behavior
+            val term = Term("Content", searchText.lowercase())  // Lowercase to match analyzer behavior
             val query: Query = FuzzyQuery(term, 2)  // '2' is the maximum edit distance allowed
 
             val hits = searcher.search(query, 10)  // search for the top 10 results
