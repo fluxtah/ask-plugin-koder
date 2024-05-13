@@ -5,8 +5,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization") version "1.8.21"
 }
 
-group = "com.fluxtah"
-version = "1.0"
+group = "com.fluxtah.ask"
+version = "0.1"
 
 repositories {
     mavenLocal()
