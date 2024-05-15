@@ -7,9 +7,16 @@ pluginManagement {
     }
 }
 
+fun includeBuildIfPresent(path: String) {
+    val projectDir = file(path)
+    if (projectDir.exists()) {
+        includeBuild(projectDir)
+    }
+}
+
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "0.5.0"
 }
 rootProject.name = "ask-plugin-koder"
-includeBuild("../ask-plugin-sdk")
+includeBuildIfPresent("../ask-plugin-sdk")
 

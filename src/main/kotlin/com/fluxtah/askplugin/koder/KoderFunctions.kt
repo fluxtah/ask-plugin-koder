@@ -249,6 +249,50 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         }
     }
 
+    @Fun("Writes a a block of lines to replace a block of lines in a file for a software project")
+    fun writeFileBlock(
+        @FunParam("The relative project path of the file")
+        fileName: String,
+        @FunParam("The line number to start writing from")
+        startLine: Int,
+        @FunParam("The number of lines to write over")
+        lineCount: Int,
+        @FunParam("The block of lines to write")
+        block: String
+    ): String {
+        return try {
+            val file = getSafeFile(fileName)
+            val lines = file.readLines()
+            val newLines = lines.toMutableList()
+            val endLine = startLine + lineCount
+            if (startLine in 0 until endLine && endLine <= lines.size) {
+                newLines.subList(startLine - 1, endLine).clear()
+                newLines.addAll(startLine - 1, block.lines())
+                file.writeText(newLines.joinToString("\n"))
+                logger.log(LogLevel.INFO, "[Write File Block] $block")
+                Json.encodeToString(
+                    mapOf(
+                        "written" to "true",
+                    )
+                )
+            } else {
+                Json.encodeToString(
+                    mapOf(
+                        "written" to "false",
+                        "error" to "Invalid start or end line"
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            Json.encodeToString(
+                mapOf(
+                    "written" to "false",
+                    "error" to e.message
+                )
+            )
+        }
+    }
+
     @Fun("Counts the number of lines in a file for a software project")
     fun countLinesInFile(
         @FunParam("The relative project path of the file")

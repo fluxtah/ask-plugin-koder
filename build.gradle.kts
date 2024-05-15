@@ -16,7 +16,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.fluxtah:ask-plugin-sdk:0.6.0")
+    implementation("com.github.fluxtah:ask-plugin-sdk:0.7.2")
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
