@@ -214,6 +214,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
     ): String {
         return try {
             val file = getSafeFile(fileName)
+            logger.log(LogLevel.INFO, "Reading file: ${file.path}")
             file.readText()
         } catch (e: Exception) {
             Json.encodeToString(
@@ -268,7 +269,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
             val newLines = replaceLines(lines, startLine, lineCount, block)
 
             file.writeText(newLines.joinToString("\n"))
-            logger.log(LogLevel.INFO, "[Write File Block] $block")
+            logger.log(LogLevel.INFO, "[Write File Block] ${file.name} - $block")
             Json.encodeToString(mapOf("written" to "true"))
 
         } catch (e: Exception) {
@@ -293,9 +294,9 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         block: String
     ): String {
         return try {
+            logger.log(LogLevel.INFO, "[Replace Lines] start: $startLine, lines: $lineCount, block: $block")
             val lines = inputText.lines().toMutableList()
             val newLines = replaceLines(lines, startLine, lineCount, block)
-            logger.log(LogLevel.INFO, "[Write File Block] $block")
             Json.encodeToString(mapOf("result" to newLines.joinToString("\n")))
 
         } catch (e: Exception) {
@@ -507,7 +508,7 @@ fun replaceLines(
     val endLine = startLine + lineCount - 1 // Corrected to ensure it's inclusive
 
     lines.subList(startLine, min(endLine + 1, lines.size))
-        .clear() // endLine + 1 because subList's end index is exclusive
+        .clear()
     lines.addAll(startLine, blockLines)
     return lines
 }
