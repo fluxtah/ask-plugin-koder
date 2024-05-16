@@ -32,6 +32,7 @@ import org.gradle.tooling.GradleConnector
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.file.Paths
+import kotlin.math.min
 
 class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
 
@@ -62,11 +63,11 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
             currentWorkingDir.walk()
                 .filter { it.isFile && !it.absolutePath.contains("/.") && includeExtensions.contains(it.extension) }
                 .forEach { file ->
-                    println("Indexing file: ${file.path}")
+                    logger.log(LogLevel.DEBUG, "Indexing file: ${file.path}")
                     val doc = Document()
                     // Calculate relative path from basePath
                     val relativePath = file.toRelativeString(currentWorkingDir)
-                    println("Relative path: $relativePath")
+                    logger.log(LogLevel.DEBUG, "Relative path: $relativePath")
                     doc.add(TextField("Content", file.readText(), Field.Store.YES))
                     doc.add(StringField("path", relativePath, Field.Store.YES))  // Store the relative path
                     writer.addDocument(doc)
@@ -249,40 +250,54 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         }
     }
 
-    @Fun("Writes a a block of lines to replace a block of lines in a file for a software project")
-    fun writeFileBlock(
+    @Fun("Writes a block of lines in place of a specified block of lines from startLine to lineCount")
+    fun replaceLinesInFile(
         @FunParam("The relative project path of the file")
         fileName: String,
-        @FunParam("The line number to start writing from")
+        @FunParam("The zero indexed line number to start writing from")
         startLine: Int,
-        @FunParam("The number of lines to write over")
+        @FunParam("The number of lines to write over, may extend beyond the existing line length")
         lineCount: Int,
-        @FunParam("The block of lines to write")
+        @FunParam("The block of lines to write in place")
         block: String
     ): String {
         return try {
             val file = getSafeFile(fileName)
-            val lines = file.readLines()
-            val newLines = lines.toMutableList()
-            val endLine = startLine + lineCount
-            if (startLine in 0 until endLine && endLine <= lines.size) {
-                newLines.subList(startLine - 1, endLine).clear()
-                newLines.addAll(startLine - 1, block.lines())
-                file.writeText(newLines.joinToString("\n"))
-                logger.log(LogLevel.INFO, "[Write File Block] $block")
-                Json.encodeToString(
-                    mapOf(
-                        "written" to "true",
-                    )
+            val lines = file.readLines().toMutableList()
+
+            val newLines = replaceLines(lines, startLine, lineCount, block)
+
+            file.writeText(newLines.joinToString("\n"))
+            logger.log(LogLevel.INFO, "[Write File Block] $block")
+            Json.encodeToString(mapOf("written" to "true"))
+
+        } catch (e: Exception) {
+            Json.encodeToString(
+                mapOf(
+                    "written" to "false",
+                    "error" to e.message
                 )
-            } else {
-                Json.encodeToString(
-                    mapOf(
-                        "written" to "false",
-                        "error" to "Invalid start or end line"
-                    )
-                )
-            }
+            )
+        }
+    }
+
+    @Fun("Writes over a block of lines in place of a specified block of lines from startLine to lineCount and returns the result")
+    fun replaceLinesInText(
+        @FunParam("The input text that contains specific lines we wish to replace")
+        inputText: String,
+        @FunParam("The zero indexed line number to start writing from")
+        startLine: Int,
+        @FunParam("The number of lines to write over, may extend beyond the existing line length")
+        lineCount: Int,
+        @FunParam("The block of lines to write in place")
+        block: String
+    ): String {
+        return try {
+            val lines = inputText.lines().toMutableList()
+            val newLines = replaceLines(lines, startLine, lineCount, block)
+            logger.log(LogLevel.INFO, "[Write File Block] $block")
+            Json.encodeToString(mapOf("result" to newLines.joinToString("\n")))
+
         } catch (e: Exception) {
             Json.encodeToString(
                 mapOf(
@@ -395,7 +410,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         }
     }
 
-    @Fun("Replaces text in a file by index for a software project")
+    @Fun("Replaces text in a file by character index for a software project")
     fun replaceTextInFileByIndex(
         @FunParam("The relative project path of the file")
         fileName: String,
@@ -480,4 +495,19 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
             )
         }
     }
+}
+
+fun replaceLines(
+    lines: MutableList<String>,
+    startLine: Int,
+    lineCount: Int,
+    block: String
+): List<String> {
+    val blockLines = block.lines()
+    val endLine = startLine + lineCount - 1 // Corrected to ensure it's inclusive
+
+    lines.subList(startLine, min(endLine + 1, lines.size))
+        .clear() // endLine + 1 because subList's end index is exclusive
+    lines.addAll(startLine, blockLines)
+    return lines
 }

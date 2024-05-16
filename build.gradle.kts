@@ -26,6 +26,9 @@ dependencies {
     implementation("org.apache.lucene:lucene-analyzers-common:8.11.0")
 
     testImplementation(kotlin("test"))
+    testImplementation("io.mockk:mockk:1.12.5")
+    testImplementation("com.google.guava:guava:31.0.1-jre")
+    testImplementation("com.google.jimfs:jimfs:1.3.0")
 }
 
 tasks.test {
