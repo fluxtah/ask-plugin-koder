@@ -226,6 +226,49 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         }
     }
 
+    @Fun("List kotlin packages in a given folder directory")
+    fun listKotlinPackages(
+        @FunParam("The relative directory path to look in")
+        directoryPath: String,
+        @FunParam("A filter to filter package names by contains, will return all packages in the given relative directory if empty")
+        filter: String
+    ): String {
+        return try {
+            val file = getSafeFile(directoryPath)
+            logger.log(LogLevel.INFO, "fetching packages in: ${file.path}")
+            val packageFiles = extractPackageNames(directoryPath)
+            val results = packageFiles.filter { it.packageName.contains(filter)  }.map { pf ->
+                val packageName = pf.packageName
+                mapOf(
+                    "packageName" to packageName,
+                    "inFiles" to pf.filePaths.joinToString(", ")
+                )
+            }
+
+            if (results.isNotEmpty()) {
+                return Json.encodeToString(
+                    mapOf(
+                        "results" to results
+                    )
+                )
+            }
+
+            return Json.encodeToString(
+                mapOf(
+                    "created" to "false",
+                    "result" to "No results found"
+                )
+            )
+        } catch (e: Exception) {
+            Json.encodeToString(
+                mapOf(
+                    "read" to "false",
+                    "error" to e.message
+                )
+            )
+        }
+    }
+
     @Fun("Reads a block of lines from a file for a software project")
     fun readFileBlock(
         @FunParam("The relative project path of the file")
