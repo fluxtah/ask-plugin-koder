@@ -25,7 +25,6 @@ import org.apache.lucene.index.Term
 import org.apache.lucene.search.FuzzyQuery
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.search.Query
-import org.apache.lucene.search.TermQuery
 import org.apache.lucene.store.Directory
 import org.apache.lucene.store.RAMDirectory
 import org.gradle.tooling.GradleConnector
@@ -41,7 +40,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         File(baseDir).mkdirs()
     }
 
-    @Fun("Searches for indexed code in a software project in the current directory")
+    @Fun("Search through an index of the code in the current directory")
     fun searchIndexedCode(
         @FunParam("The text to search the index with")
         searchText: String
@@ -116,7 +115,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         return normalizedPath
     }
 
-    @Fun("Creates a directory for a software project")
+    @Fun("Create a directory")
     fun createDirectory(
         @FunParam("The desired relative path and name of the project if it does not exist already")
         directoryName: String
@@ -148,7 +147,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         }
     }
 
-    @Fun("Creates a file for a software project")
+    @Fun("Create a file")
     fun createFile(
         @FunParam("The desired relative path of the file")
         fileName: String
@@ -181,9 +180,9 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
     }
 
 
-    @Fun("Creates or writes to a file for a software project")
+    @Fun("Create or writes to a file")
     fun writeFile(
-        @FunParam("The relative project path of the file")
+        @FunParam("The relative path of the file")
         fileName: String,
         @FunParam("The contents to write to the file")
         fileContents: String
@@ -207,7 +206,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         }
     }
 
-    @Fun("Reads a file for a software project")
+    @Fun("Read all the text in a file, prefer using readFileBlock for large files")
     fun readFile(
         @FunParam("The relative project path of the file")
         fileName: String
@@ -226,7 +225,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         }
     }
 
-    @Fun("List kotlin packages in a given folder directory")
+    @Fun("List kotlin packages and associated files found in the files of the given directory")
     fun listKotlinPackages(
         @FunParam("The relative directory path to look in")
         directoryPath: String,
@@ -237,7 +236,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
             val file = getSafeFile(directoryPath)
             logger.log(LogLevel.INFO, "fetching packages in: ${file.path}")
             val packageFiles = extractPackageNames(directoryPath)
-            val results = packageFiles.filter { it.packageName.contains(filter)  }.map { pf ->
+            val results = packageFiles.filter { it.packageName.contains(filter) }.map { pf ->
                 val packageName = pf.packageName
                 mapOf(
                     "packageName" to packageName,
@@ -269,20 +268,20 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         }
     }
 
-    @Fun("Reads a block of lines from a file for a software project")
+    @Fun("Read a block of lines from a file")
     fun readFileBlock(
         @FunParam("The relative project path of the file")
         fileName: String,
-        @FunParam("The line number to start reading from")
+        @FunParam("The zero indexed line number to start reading from")
         startLine: Int,
         @FunParam("The number of lines to read")
         lineCount: Int
     ): String {
         return try {
             val file = getSafeFile(fileName)
-            val lines = file.useLines { it.drop(startLine - 1).take(lineCount).toList() }
+            val lines = file.useLines { it.drop(startLine).take(lineCount).toList() }
             val block = lines.joinToString("\n")
-            logger.log(LogLevel.INFO, "[Read File Block] $block")
+            logger.log(LogLevel.INFO, "[Read File Block] ${file.name}")
             block
         } catch (e: Exception) {
             Json.encodeToString(
@@ -294,15 +293,15 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         }
     }
 
-    @Fun("Writes a block of lines in place of a specified block of lines from startLine to lineCount")
+    @Fun("Write a block of lines in place of a specified block of lines from startLine to lineCount, useful for replacing function blocks or similar")
     fun replaceLinesInFile(
         @FunParam("The relative project path of the file")
         fileName: String,
-        @FunParam("The zero indexed line number to start writing from")
+        @FunParam("The zero indexed line number to start replacing from")
         startLine: Int,
-        @FunParam("The number of lines to write over, may extend beyond the existing line length")
+        @FunParam("The number of lines to replace, may extend beyond the number of existing lines")
         lineCount: Int,
-        @FunParam("The block of lines to write in place")
+        @FunParam("The replacement block of lines")
         block: String
     ): String {
         return try {
@@ -312,28 +311,28 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
             val newLines = replaceLines(lines, startLine, lineCount, block)
 
             file.writeText(newLines.joinToString("\n"))
-            logger.log(LogLevel.INFO, "[Write File Block] ${file.name} - $block")
-            Json.encodeToString(mapOf("written" to "true"))
+            logger.log(LogLevel.INFO, "[Replace Lines In File] ${file.name}")
+            Json.encodeToString(mapOf("replaced" to "true"))
 
         } catch (e: Exception) {
             Json.encodeToString(
                 mapOf(
-                    "written" to "false",
+                    "replaced" to "false",
                     "error" to e.message
                 )
             )
         }
     }
 
-    @Fun("Writes over a block of lines in place of a specified block of lines from startLine to lineCount and returns the result")
+    @Fun("Write over a block of lines in place of a specified block of lines from startLine to lineCount and returns the result")
     fun replaceLinesInText(
         @FunParam("The input text that contains specific lines we wish to replace")
         inputText: String,
-        @FunParam("The zero indexed line number to start writing from")
+        @FunParam("The zero indexed line number to start replacing from")
         startLine: Int,
-        @FunParam("The number of lines to write over, may extend beyond the existing line length")
+        @FunParam("The number of lines to replace, may extend beyond the number of existing lines")
         lineCount: Int,
-        @FunParam("The block of lines to write in place")
+        @FunParam("The replacement block of lines")
         block: String
     ): String {
         return try {
@@ -345,14 +344,14 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         } catch (e: Exception) {
             Json.encodeToString(
                 mapOf(
-                    "written" to "false",
+                    "replaced" to "false",
                     "error" to e.message
                 )
             )
         }
     }
 
-    @Fun("Counts the number of lines in a file for a software project")
+    @Fun("Count the number of lines in text based file")
     fun countLinesInFile(
         @FunParam("The relative project path of the file")
         fileName: String
@@ -374,7 +373,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         }
     }
 
-    @Fun("Lists files in a directory for a software project")
+    @Fun("List files in a directory")
     fun listFilesInDirectory(
         @FunParam("The relative project path of the directory")
         directoryName: String
@@ -414,7 +413,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         return fileList
     }
 
-    @Fun("Replaces specific text in a file for a software project")
+    @Fun("Replace specific text in a file")
     fun replaceTextInFile(
         @FunParam("The relative project path of the file")
         fileName: String,
@@ -454,7 +453,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         }
     }
 
-    @Fun("Replaces text in a file by character index for a software project")
+    @Fun("Replace text in a file by character index")
     fun replaceTextInFileByIndex(
         @FunParam("The relative project path of the file")
         fileName: String,
@@ -498,7 +497,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         }
     }
 
-    @Fun("Builds a software project with Gradle")
+    @Fun("Builds with Gradle")
     fun execGradle(
         @FunParam("The relative project path of the project")
         projectDir: String,
@@ -539,6 +538,84 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
             )
         }
     }
+
+    @Fun("Executes a make target")
+    fun execMake(
+        @FunParam("The relative project path of the project")
+        projectDir: String,
+        @FunParam("The make target to execute")
+        makeTarget: String
+    ): String {
+        val errorOut = ByteArrayOutputStream()
+        return try {
+            val projectDirectory = getSafeFile(projectDir)
+            val process = ProcessBuilder("make", makeTarget)
+                .directory(projectDirectory)
+                .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+                .redirectError(ProcessBuilder.Redirect.PIPE)
+                .start()
+            process.waitFor()
+            val error = process.errorStream.bufferedReader().readText()
+            if (error.isNotEmpty()) {
+                logger.log(LogLevel.ERROR, "Error executing make: $error")
+            }
+            Json.encodeToString(
+                mapOf(
+                    "success" to "true",
+                    "error" to error
+                )
+            )
+        } catch (e: Exception) {
+            logger.log(LogLevel.ERROR, "Error executing make: ${e.cause}")
+            Json.encodeToString(
+                mapOf(
+                    "success" to "false",
+                    "errorMessage" to e.message,
+                    "cause" to e.cause.toString(),
+                    "errorOut" to errorOut.toString()
+                )
+            )
+        }
+    }
+
+    @Fun("Executes a shell command")
+    fun execShellCommand(
+        @FunParam("The relative project path of the project")
+        projectDir: String,
+        @FunParam("The shell command to execute")
+        shellCommand: String
+    ): String {
+        val errorOut = ByteArrayOutputStream()
+        return try {
+            val projectDirectory = getSafeFile(projectDir)
+            val process = ProcessBuilder("sh", "-c", shellCommand)
+                .directory(projectDirectory)
+                .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+                .redirectError(ProcessBuilder.Redirect.PIPE)
+                .start()
+            process.waitFor()
+            val error = process.errorStream.bufferedReader().readText()
+            if (error.isNotEmpty()) {
+                logger.log(LogLevel.ERROR, "Error executing shell command: $error")
+            }
+            Json.encodeToString(
+                mapOf(
+                    "success" to "true",
+                    "error" to error
+                )
+            )
+        } catch (e: Exception) {
+            logger.log(LogLevel.ERROR, "Error executing shell command: ${e.cause}")
+            Json.encodeToString(
+                mapOf(
+                    "success" to "false",
+                    "errorMessage" to e.message,
+                    "cause" to e.cause.toString(),
+                    "errorOut" to errorOut.toString()
+                )
+            )
+        }
+    }
 }
 
 fun replaceLines(
@@ -550,8 +627,7 @@ fun replaceLines(
     val blockLines = block.lines()
     val endLine = startLine + lineCount - 1 // Corrected to ensure it's inclusive
 
-    lines.subList(startLine, min(endLine + 1, lines.size))
-        .clear()
+    lines.subList(startLine, min(endLine + 1, lines.size)).clear()
     lines.addAll(startLine, blockLines)
     return lines
 }
