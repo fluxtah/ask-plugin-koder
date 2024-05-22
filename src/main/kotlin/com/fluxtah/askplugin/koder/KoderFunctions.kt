@@ -413,89 +413,89 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         return fileList
     }
 
-    @Fun("Replace specific text in a file")
-    fun replaceTextInFile(
-        @FunParam("The relative project path of the file")
-        fileName: String,
-        @FunParam("The text to replace")
-        textToReplace: String,
-        @FunParam("The replacement text")
-        replacementText: String
-    ): String {
-        return try {
-            val file = getSafeFile(fileName)
-            val fileText = file.readText()
+//    @Fun("Replace specific text in a file")
+//    fun replaceTextInFile(
+//        @FunParam("The relative project path of the file")
+//        fileName: String,
+//        @FunParam("The text to replace")
+//        textToReplace: String,
+//        @FunParam("The replacement text")
+//        replacementText: String
+//    ): String {
+//        return try {
+//            val file = getSafeFile(fileName)
+//            val fileText = file.readText()
+//
+//            if (fileText.contains(textToReplace)) {
+//                val newText = fileText.replace(textToReplace, replacementText)
+//                file.writeText(newText)
+//                logger.log(LogLevel.INFO, "Replaced specific text in file: ${file.path}")
+//                Json.encodeToString(
+//                    mapOf(
+//                        "replaced" to "true",
+//                    )
+//                )
+//            } else {
+//                Json.encodeToString(
+//                    mapOf(
+//                        "replaced" to "false",
+//                        "error" to "Text to replace not found"
+//                    )
+//                )
+//            }
+//        } catch (e: Exception) {
+//            Json.encodeToString(
+//                mapOf(
+//                    "replaced" to "false",
+//                    "error" to e.message
+//                )
+//            )
+//        }
+//    }
 
-            if (fileText.contains(textToReplace)) {
-                val newText = fileText.replace(textToReplace, replacementText)
-                file.writeText(newText)
-                logger.log(LogLevel.INFO, "Replaced specific text in file: ${file.path}")
-                Json.encodeToString(
-                    mapOf(
-                        "replaced" to "true",
-                    )
-                )
-            } else {
-                Json.encodeToString(
-                    mapOf(
-                        "replaced" to "false",
-                        "error" to "Text to replace not found"
-                    )
-                )
-            }
-        } catch (e: Exception) {
-            Json.encodeToString(
-                mapOf(
-                    "replaced" to "false",
-                    "error" to e.message
-                )
-            )
-        }
-    }
-
-    @Fun("Replace text in a file by character index")
-    fun replaceTextInFileByIndex(
-        @FunParam("The relative project path of the file")
-        fileName: String,
-        @FunParam("The start index of the text to replace")
-        startIndex: Int,
-        @FunParam("The end index of the text to replace")
-        endIndex: Int,
-        @FunParam("The replacement text")
-        replacementText: String
-    ): String {
-        return try {
-            val file = getSafeFile(fileName)
-            val fileText = file.readText()
-
-            if (startIndex in 0 until endIndex && endIndex <= fileText.length) {
-                val newText = StringBuilder(fileText)
-                    .replace(startIndex, endIndex, replacementText)
-                    .toString()
-                file.writeText(newText)
-                logger.log(LogLevel.INFO, "Replaced content in file: ${file.path}")
-                Json.encodeToString(
-                    mapOf(
-                        "replaced" to "true",
-                    )
-                )
-            } else {
-                Json.encodeToString(
-                    mapOf(
-                        "replaced" to "false",
-                        "error" to "Invalid start or end index"
-                    )
-                )
-            }
-        } catch (e: Exception) {
-            Json.encodeToString(
-                mapOf(
-                    "replaced" to "false",
-                    "error" to e.message
-                )
-            )
-        }
-    }
+//    @Fun("Replace text in a file by character index")
+//    fun replaceTextInFileByIndex(
+//        @FunParam("The relative project path of the file")
+//        fileName: String,
+//        @FunParam("The start index of the text to replace")
+//        startIndex: Int,
+//        @FunParam("The end index of the text to replace")
+//        endIndex: Int,
+//        @FunParam("The replacement text")
+//        replacementText: String
+//    ): String {
+//        return try {
+//            val file = getSafeFile(fileName)
+//            val fileText = file.readText()
+//
+//            if (startIndex in 0 until endIndex && endIndex <= fileText.length) {
+//                val newText = StringBuilder(fileText)
+//                    .replace(startIndex, endIndex, replacementText)
+//                    .toString()
+//                file.writeText(newText)
+//                logger.log(LogLevel.INFO, "Replaced content in file: ${file.path}")
+//                Json.encodeToString(
+//                    mapOf(
+//                        "replaced" to "true",
+//                    )
+//                )
+//            } else {
+//                Json.encodeToString(
+//                    mapOf(
+//                        "replaced" to "false",
+//                        "error" to "Invalid start or end index"
+//                    )
+//                )
+//            }
+//        } catch (e: Exception) {
+//            Json.encodeToString(
+//                mapOf(
+//                    "replaced" to "false",
+//                    "error" to e.message
+//                )
+//            )
+//        }
+//    }
 
     @Fun("Builds with Gradle")
     fun execGradle(
@@ -612,6 +612,32 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
                     "errorMessage" to e.message,
                     "cause" to e.cause.toString(),
                     "errorOut" to errorOut.toString()
+                )
+            )
+        }
+    }
+
+    @Fun("Find line index by regex")
+    fun findLineIndexByRegex(
+        @FunParam("The relative project path of the file")
+        fileName: String,
+        @FunParam("The regex pattern to search for")
+        pattern: String
+    ): String {
+        return try {
+            val file = getSafeFile(fileName)
+            val lines = file.readLines()
+            val regex = Regex(pattern)
+            val index = lines.indexOfFirst { it.contains(regex) }
+            Json.encodeToString(
+                mapOf(
+                    "index" to index.toString(),
+                )
+            )
+        } catch (e: Exception) {
+            Json.encodeToString(
+                mapOf(
+                    "error" to e.message
                 )
             )
         }
