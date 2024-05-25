@@ -6,6 +6,8 @@
 
 package com.fluxtah.askplugin.koder
 
+import com.fluxtah.askplugin.koder.model.ListKotlinPackagesResult
+import com.fluxtah.askplugin.koder.model.PackageFiles
 import com.fluxtah.askpluginsdk.Fun
 import com.fluxtah.askpluginsdk.FunParam
 import com.fluxtah.askpluginsdk.io.getCurrentWorkingDirectory
@@ -40,7 +42,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         File(baseDir).mkdirs()
     }
 
-    @Fun("Search through an index of the code in the current directory")
+    @Fun("Search through an index of the code based on the current directory")
     fun searchIndexedCode(
         @FunParam("The text to search the index with")
         searchText: String
@@ -57,36 +59,41 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
             "clj", "cljs", "cljc", "edn", "rkt", "scm", "ss", "sld", "sch"
         )
 
+        val blockSize = 32
+
         IndexWriter(index, config).use { writer ->
             val currentWorkingDir = File(getCurrentWorkingDirectory())
             currentWorkingDir.walk()
+                .filter { !it.name.equals("build") }
                 .filter { it.isFile && !it.absolutePath.contains("/.") && includeExtensions.contains(it.extension) }
                 .forEach { file ->
-                    logger.log(LogLevel.DEBUG, "Indexing file: ${file.path}")
-                    val doc = Document()
-                    // Calculate relative path from basePath
-                    val relativePath = file.toRelativeString(currentWorkingDir)
-                    logger.log(LogLevel.DEBUG, "Relative path: $relativePath")
-                    doc.add(TextField("Content", file.readText(), Field.Store.YES))
-                    doc.add(StringField("path", relativePath, Field.Store.YES))  // Store the relative path
-                    writer.addDocument(doc)
+                    val lines = file.readLines()
+                    lines.chunked(blockSize).forEachIndexed { blockIndex, block ->
+                        val doc = Document()
+                        val blockContent = block.joinToString("\n")
+                        val relativePath = file.toRelativeString(currentWorkingDir)
+                        val startLine = blockIndex * blockSize
+                        doc.add(TextField("Content", blockContent, Field.Store.YES))
+                        doc.add(StringField("Path", relativePath, Field.Store.YES))
+                        doc.add(StringField("StartLine", startLine.toString(), Field.Store.YES))
+                        writer.addDocument(doc)
+                    }
                 }
         }
 
         // Search
         DirectoryReader.open(index).use { reader ->
             val searcher = IndexSearcher(reader)
-            // Example: 'searchText' will be matched fuzzily
-            val term = Term("Content", searchText.lowercase())  // Lowercase to match analyzer behavior
-            val query: Query = FuzzyQuery(term, 2)  // '2' is the maximum edit distance allowed
+            val term = Term("Content", searchText.lowercase())
+            val query: Query = FuzzyQuery(term, 2)
 
-            val hits = searcher.search(query, 10)  // search for the top 10 results
-
+            val hits = searcher.search(query, 4)
             val results = hits.scoreDocs.map { scoreDoc ->
                 val doc = searcher.doc(scoreDoc.doc)
                 mapOf(
-                    "path" to doc.get("path"),  // Include the path in the result
-                    "content" to doc.get("Content")
+                    "path" to doc.get("Path"),
+                    "startLineIndex" to doc.get("StartLine"),
+                    "block" to doc.get("Content"),
                 )
             }
 
@@ -225,46 +232,30 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         }
     }
 
+
     @Fun("List kotlin packages and associated files found in the files of the given directory")
     fun listKotlinPackages(
         @FunParam("The relative directory path to look in")
         directoryPath: String,
         @FunParam("A filter to filter package names by contains, will return all packages in the given relative directory if empty")
         filter: String
-    ): String {
+    ): ListKotlinPackagesResult {
         return try {
             val file = getSafeFile(directoryPath)
             logger.log(LogLevel.INFO, "fetching packages in: ${file.path}")
             val packageFiles = extractPackageNames(directoryPath)
             val results = packageFiles.filter { it.packageName.contains(filter) }.map { pf ->
                 val packageName = pf.packageName
-                mapOf(
-                    "packageName" to packageName,
-                    "inFiles" to pf.filePaths.joinToString(", ")
-                )
+                PackageFiles(packageName, PathTreeBuilder(pf.filePaths).toTextTree())
             }
 
             if (results.isNotEmpty()) {
-                return Json.encodeToString(
-                    mapOf(
-                        "results" to results
-                    )
-                )
+                return ListKotlinPackagesResult.Success(results)
             }
 
-            return Json.encodeToString(
-                mapOf(
-                    "created" to "false",
-                    "result" to "No results found"
-                )
-            )
+            return ListKotlinPackagesResult.NoResults
         } catch (e: Exception) {
-            Json.encodeToString(
-                mapOf(
-                    "read" to "false",
-                    "error" to e.message
-                )
-            )
+           ListKotlinPackagesResult.Error(e.message ?: "An error occurred")
         }
     }
 
@@ -298,8 +289,8 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         @FunParam("The relative project path of the file")
         fileName: String,
         @FunParam("The zero indexed line number to start replacing from")
-        startLine: Int,
-        @FunParam("The number of lines to replace, may extend beyond the number of existing lines")
+        startLineIndex: Int,
+        @FunParam("The number of lines to replace, may extend beyond the number of existing lines, set to zero (replace nothing) to just insert the new block at the startLineIndex")
         lineCount: Int,
         @FunParam("The replacement block of lines")
         block: String
@@ -308,7 +299,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
             val file = getSafeFile(fileName)
             val lines = file.readLines().toMutableList()
 
-            val newLines = replaceLines(lines, startLine, lineCount, block)
+            val newLines = replaceLines(lines, startLineIndex, lineCount, block)
 
             file.writeText(newLines.joinToString("\n"))
             logger.log(LogLevel.INFO, "[Replace Lines In File] ${file.name}")
@@ -329,16 +320,16 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         @FunParam("The input text that contains specific lines we wish to replace")
         inputText: String,
         @FunParam("The zero indexed line number to start replacing from")
-        startLine: Int,
-        @FunParam("The number of lines to replace, may extend beyond the number of existing lines")
+        startLineIndex: Int,
+        @FunParam("The number of lines to replace, may extend beyond the number of existing lines, set to zero (replace nothing) to just insert the new block at the startLineIndex")
         lineCount: Int,
         @FunParam("The replacement block of lines")
         block: String
     ): String {
         return try {
-            logger.log(LogLevel.INFO, "[Replace Lines] start: $startLine, lines: $lineCount, block: $block")
+            logger.log(LogLevel.INFO, "[Replace Lines] start: $startLineIndex, lines: $lineCount, block: $block")
             val lines = inputText.lines().toMutableList()
-            val newLines = replaceLines(lines, startLine, lineCount, block)
+            val newLines = replaceLines(lines, startLineIndex, lineCount, block)
             Json.encodeToString(mapOf("result" to newLines.joinToString("\n")))
 
         } catch (e: Exception) {
@@ -586,36 +577,39 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         shellCommand: String
     ): String {
         val errorOut = ByteArrayOutputStream()
+        val output = ByteArrayOutputStream()
         return try {
             val projectDirectory = getSafeFile(projectDir)
             val process = ProcessBuilder("sh", "-c", shellCommand)
                 .directory(projectDirectory)
-                .redirectOutput(ProcessBuilder.Redirect.INHERIT)
-                .redirectError(ProcessBuilder.Redirect.PIPE)
+                .redirectErrorStream(true) // Redirects error stream to the output stream
                 .start()
+
+            val processOutput = process.inputStream.bufferedReader().readText() // Captures both output and error stream
             process.waitFor()
-            val error = process.errorStream.bufferedReader().readText()
-            if (error.isNotEmpty()) {
-                logger.log(LogLevel.ERROR, "Error executing shell command: $error")
+            if (process.exitValue() != 0) {
+                logger.log(LogLevel.ERROR, "Error executing shell command: $processOutput")
             }
+
             Json.encodeToString(
                 mapOf(
-                    "success" to "true",
-                    "error" to error
+                    "success" to (process.exitValue() == 0).toString(),
+                    "output" to processOutput
                 )
             )
         } catch (e: Exception) {
-            logger.log(LogLevel.ERROR, "Error executing shell command: ${e.cause}")
+            logger.log(LogLevel.ERROR, "Error executing shell command: ${e.message}")
             Json.encodeToString(
                 mapOf(
                     "success" to "false",
                     "errorMessage" to e.message,
-                    "cause" to e.cause.toString(),
+                    "cause" to e.cause?.toString(),
                     "errorOut" to errorOut.toString()
                 )
             )
         }
     }
+
 
     @Fun("Find line index by regex")
     fun findLineIndexByRegex(
