@@ -255,7 +255,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
 
             return ListKotlinPackagesResult.NoResults
         } catch (e: Exception) {
-           ListKotlinPackagesResult.Error(e.message ?: "An error occurred")
+            ListKotlinPackagesResult.Error(e.message ?: "An error occurred")
         }
     }
 
@@ -263,14 +263,15 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
     fun readFileBlock(
         @FunParam("The relative project path of the file")
         fileName: String,
-        @FunParam("The zero indexed line number to start reading from")
+        @FunParam("The line number to start reading from")
         startLine: Int,
         @FunParam("The number of lines to read")
         lineCount: Int
     ): String {
         return try {
             val file = getSafeFile(fileName)
-            val lines = file.useLines { it.drop(startLine).take(lineCount).toList() }
+            val startLineIdx = (startLine - 1).coerceAtLeast(0)
+            val lines = file.useLines { it.drop(startLineIdx).take(lineCount).toList() }
             val block = lines.joinToString("\n")
             logger.log(LogLevel.INFO, "[Read File Block] ${file.name}")
             block
@@ -288,9 +289,9 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
     fun replaceLinesInFile(
         @FunParam("The relative project path of the file")
         fileName: String,
-        @FunParam("The zero indexed line number to start replacing from")
-        startLineIndex: Int,
-        @FunParam("The number of lines to replace, may extend beyond the number of existing lines, set to zero (replace nothing) to just insert the new block at the startLineIndex")
+        @FunParam("The zero line number to start replacing from")
+        startLine: Int,
+        @FunParam("The number of lines to replace, may extend beyond the number of existing lines, set to zero (replace nothing) to just insert the new block at the start line")
         lineCount: Int,
         @FunParam("The replacement block of lines")
         block: String
@@ -298,6 +299,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         return try {
             val file = getSafeFile(fileName)
             val lines = file.readLines().toMutableList()
+            val startLineIndex = (startLine - 1).coerceAtLeast(0)
 
             val newLines = replaceLines(lines, startLineIndex, lineCount, block)
 
@@ -319,15 +321,16 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
     fun replaceLinesInText(
         @FunParam("The input text that contains specific lines we wish to replace")
         inputText: String,
-        @FunParam("The zero indexed line number to start replacing from")
-        startLineIndex: Int,
-        @FunParam("The number of lines to replace, may extend beyond the number of existing lines, set to zero (replace nothing) to just insert the new block at the startLineIndex")
+        @FunParam("The line number to start replacing from")
+        startLine: Int,
+        @FunParam("The number of lines to replace, may extend beyond the number of existing lines, set to zero (replace nothing) to just insert the new block at the start line")
         lineCount: Int,
         @FunParam("The replacement block of lines")
         block: String
     ): String {
+        val startLineIndex = (startLine - 1).coerceAtLeast(0)
         return try {
-            logger.log(LogLevel.INFO, "[Replace Lines] start: $startLineIndex, lines: $lineCount, block: $block")
+            logger.log(LogLevel.INFO, "[Replace Lines] start: $startLine, lines: $lineCount, block: $block")
             val lines = inputText.lines().toMutableList()
             val newLines = replaceLines(lines, startLineIndex, lineCount, block)
             Json.encodeToString(mapOf("result" to newLines.joinToString("\n")))
@@ -611,21 +614,21 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
     }
 
 
-    @Fun("Find line index by regex")
-    fun findLineIndexByRegex(
+    @Fun("Find line number by regex")
+    fun findLineNumberByRegex(
         @FunParam("The relative project path of the file")
         fileName: String,
-        @FunParam("The regex pattern to search for")
+        @FunParam("The regex pattern to search with")
         pattern: String
     ): String {
         return try {
             val file = getSafeFile(fileName)
             val lines = file.readLines()
             val regex = Regex(pattern)
-            val index = lines.indexOfFirst { it.contains(regex) }
+            val lineNumber = lines.indexOfFirst { it.contains(regex) } + 1
             Json.encodeToString(
                 mapOf(
-                    "index" to index.toString(),
+                    "index" to lineNumber.toString(),
                 )
             )
         } catch (e: Exception) {
@@ -645,9 +648,10 @@ fun replaceLines(
     block: String
 ): List<String> {
     val blockLines = block.lines()
-    val endLine = startLine + lineCount - 1 // Corrected to ensure it's inclusive
+    val startLineIndex = startLine.coerceAtLeast(0)
+    val endLine = startLineIndex + lineCount - 1 // Corrected to ensure it's inclusive
 
-    lines.subList(startLine, min(endLine + 1, lines.size)).clear()
-    lines.addAll(startLine, blockLines)
+    lines.subList(startLineIndex, min(endLine + 1, lines.size)).clear()
+    lines.addAll(startLineIndex, blockLines)
     return lines
 }
