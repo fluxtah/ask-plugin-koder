@@ -6,6 +6,11 @@
 
 package com.fluxtah.askplugin.koder
 
+import com.fluxtah.askplugin.koder.kotlin.KotlinFileRepository
+import com.fluxtah.askplugin.koder.model.AstClassInfo
+import com.fluxtah.askplugin.koder.model.AstFunctionInfo
+import com.fluxtah.askplugin.koder.model.ListClassesResult
+import com.fluxtah.askplugin.koder.model.ListFunctionsResult
 import com.fluxtah.askplugin.koder.model.ListKotlinPackagesResult
 import com.fluxtah.askplugin.koder.model.PackageFiles
 import com.fluxtah.askpluginsdk.Fun
@@ -30,6 +35,8 @@ import org.apache.lucene.search.Query
 import org.apache.lucene.store.Directory
 import org.apache.lucene.store.RAMDirectory
 import org.gradle.tooling.GradleConnector
+import org.jetbrains.kotlin.psi.KtClass
+import org.jetbrains.kotlin.psi.KtNamedFunction
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.file.Paths
@@ -244,9 +251,16 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
             val file = getSafeFile(directoryPath)
             logger.log(LogLevel.INFO, "fetching packages in: ${file.path}")
             val packageFiles = extractPackageNames(directoryPath)
-            val results = packageFiles.filter { it.packageName.contains(filter) }.map { pf ->
-                val packageName = pf.packageName
-                PackageFiles(packageName, PathTreeBuilder(pf.filePaths).toTextTree())
+            val results = if (filter.isEmpty()) {
+                packageFiles.map { pf ->
+                    val packageName = pf.packageName
+                    PackageFiles(packageName, PathTreeBuilder(pf.filePaths).toTextTree())
+                }
+            } else {
+                packageFiles.filter { it.packageName.contains(filter) }.map { pf ->
+                    val packageName = pf.packageName
+                    PackageFiles(packageName, PathTreeBuilder(pf.filePaths).toTextTree())
+                }
             }
 
             if (results.isNotEmpty()) {
@@ -260,7 +274,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
     }
 
     @Fun("Read a block of lines from a file")
-    fun readFileBlock(
+    fun readFileBlockByLines(
         @FunParam("The relative project path of the file")
         fileName: String,
         @FunParam("The line number to start reading from")
@@ -273,6 +287,30 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
             val startLineIdx = (startLine - 1).coerceAtLeast(0)
             val lines = file.useLines { it.drop(startLineIdx).take(lineCount).toList() }
             val block = lines.joinToString("\n")
+            logger.log(LogLevel.INFO, "[Read File Block] ${file.name}")
+            block
+        } catch (e: Exception) {
+            Json.encodeToString(
+                mapOf(
+                    "read" to "false",
+                    "error" to e.message
+                )
+            )
+        }
+    }
+
+    @Fun("Read a block of text from a file by character startOffset and endOffset")
+    fun readFileBlockByChars(
+        @FunParam("The relative project path of the file")
+        fileName: String,
+        @FunParam("The start offset of the block")
+        startOffset: Int,
+        @FunParam("The end offset of the block")
+        endOffset: Int
+    ): String {
+        return try {
+            val file = getSafeFile(fileName)
+            val block = file.readText().substring(startOffset, endOffset)
             logger.log(LogLevel.INFO, "[Read File Block] ${file.name}")
             block
         } catch (e: Exception) {
@@ -406,90 +444,6 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         }
         return fileList
     }
-
-//    @Fun("Replace specific text in a file")
-//    fun replaceTextInFile(
-//        @FunParam("The relative project path of the file")
-//        fileName: String,
-//        @FunParam("The text to replace")
-//        textToReplace: String,
-//        @FunParam("The replacement text")
-//        replacementText: String
-//    ): String {
-//        return try {
-//            val file = getSafeFile(fileName)
-//            val fileText = file.readText()
-//
-//            if (fileText.contains(textToReplace)) {
-//                val newText = fileText.replace(textToReplace, replacementText)
-//                file.writeText(newText)
-//                logger.log(LogLevel.INFO, "Replaced specific text in file: ${file.path}")
-//                Json.encodeToString(
-//                    mapOf(
-//                        "replaced" to "true",
-//                    )
-//                )
-//            } else {
-//                Json.encodeToString(
-//                    mapOf(
-//                        "replaced" to "false",
-//                        "error" to "Text to replace not found"
-//                    )
-//                )
-//            }
-//        } catch (e: Exception) {
-//            Json.encodeToString(
-//                mapOf(
-//                    "replaced" to "false",
-//                    "error" to e.message
-//                )
-//            )
-//        }
-//    }
-
-//    @Fun("Replace text in a file by character index")
-//    fun replaceTextInFileByIndex(
-//        @FunParam("The relative project path of the file")
-//        fileName: String,
-//        @FunParam("The start index of the text to replace")
-//        startIndex: Int,
-//        @FunParam("The end index of the text to replace")
-//        endIndex: Int,
-//        @FunParam("The replacement text")
-//        replacementText: String
-//    ): String {
-//        return try {
-//            val file = getSafeFile(fileName)
-//            val fileText = file.readText()
-//
-//            if (startIndex in 0 until endIndex && endIndex <= fileText.length) {
-//                val newText = StringBuilder(fileText)
-//                    .replace(startIndex, endIndex, replacementText)
-//                    .toString()
-//                file.writeText(newText)
-//                logger.log(LogLevel.INFO, "Replaced content in file: ${file.path}")
-//                Json.encodeToString(
-//                    mapOf(
-//                        "replaced" to "true",
-//                    )
-//                )
-//            } else {
-//                Json.encodeToString(
-//                    mapOf(
-//                        "replaced" to "false",
-//                        "error" to "Invalid start or end index"
-//                    )
-//                )
-//            }
-//        } catch (e: Exception) {
-//            Json.encodeToString(
-//                mapOf(
-//                    "replaced" to "false",
-//                    "error" to e.message
-//                )
-//            )
-//        }
-//    }
 
     @Fun("Builds with Gradle")
     fun execGradle(
@@ -637,6 +591,105 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
                     "error" to e.message
                 )
             )
+        }
+    }
+
+    @Fun("List classes in a Kotlin file via AST, returns a list of classes with character start offset and end offset in the file")
+    fun listClassesInKotlinFile(
+        @FunParam("The relative project path of the file")
+        fileName: String,
+        @FunParam("A filter to filter class names by contains, will return all classes in the given kotlin file if empty")
+        filter: String
+    ): ListClassesResult {
+        val repository = KotlinFileRepository()
+
+        try {
+            val file = getSafeFile(fileName)
+            val ktFile = repository.parseFileOnce(file.path)
+
+            val classes = ktFile!!.declarations.filterIsInstance<KtClass>()
+            val resultClasses = mutableListOf<AstClassInfo>()
+
+            for (klass in classes) {
+                if (filter.isEmpty()) {
+                    resultClasses.add(
+                        AstClassInfo(
+                            name = klass.name ?: "",
+                            start = klass.textRange.startOffset,
+                            end = klass.textRange.endOffset
+                        )
+                    )
+                } else {
+                    if (klass.name?.contains(filter, true) == true) {
+                        resultClasses.add(
+                            AstClassInfo(
+                                name = klass.name ?: "",
+                                start = klass.textRange.startOffset,
+                                end = klass.textRange.endOffset
+                            )
+                        )
+                    }
+                }
+            }
+
+            return ListClassesResult.Success(resultClasses)
+        } catch (e: Exception) {
+            return ListClassesResult.Error(e.message ?: "An error occurred")
+        }
+    }
+
+    @Fun("List functions in a Kotlin file via AST, returns a list of functions with character start offset and end offset in the file")
+    fun listFunctionsInKotlinFile(
+        @FunParam("The relative project path of the file")
+        fileName: String,
+        @FunParam("The exact class name to search for or leave empty to list top-level functions")
+        className: String = "",
+        @FunParam("A filter to filter function names by contains, will return all functions in the given class if empty")
+        filter: String
+    ): ListFunctionsResult {
+        val repository = KotlinFileRepository()
+
+        try {
+            val file = getSafeFile(fileName)
+            val ktFile = repository.parseFileOnce(file.path)
+
+            val classes = ktFile!!.declarations.filterIsInstance<KtClass>()
+            val resultFunctions = mutableListOf<AstFunctionInfo>()
+
+            val declarations = if (className.isEmpty()) {
+                ktFile.declarations
+            } else {
+                val klass = classes.find { it.name == className }
+                klass?.declarations ?: emptyList()
+            }
+
+            val functions = declarations.filterIsInstance<KtNamedFunction>()
+
+            for (function in functions) {
+                if (filter.isEmpty()) {
+                    resultFunctions.add(
+                        AstFunctionInfo(
+                            name = function.name ?: "",
+                            start = function.textRange.startOffset,
+                            end = function.textRange.endOffset
+                        )
+                    )
+                } else {
+                    if (function.name?.contains(filter, true) == true) {
+                        resultFunctions.add(
+                            AstFunctionInfo(
+                                name = function.name ?: "",
+                                start = function.textRange.startOffset,
+                                end = function.textRange.endOffset
+                            )
+                        )
+                    }
+                }
+            }
+
+            return ListFunctionsResult.Success(resultFunctions)
+        } catch (e: Exception) {
+            return ListFunctionsResult.Error(e.message ?: "An error occurred")
         }
     }
 }
