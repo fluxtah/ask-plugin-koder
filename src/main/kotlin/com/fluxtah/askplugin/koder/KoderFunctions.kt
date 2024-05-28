@@ -13,11 +13,14 @@ import com.fluxtah.askplugin.koder.model.ListClassesResult
 import com.fluxtah.askplugin.koder.model.ListFunctionsResult
 import com.fluxtah.askplugin.koder.model.ListKotlinPackagesResult
 import com.fluxtah.askplugin.koder.model.PackageFiles
+import com.fluxtah.askplugin.koder.search.KotlinDeclaration
+import com.fluxtah.askplugin.koder.search.KotlinDeclarationSearch
 import com.fluxtah.askpluginsdk.Fun
 import com.fluxtah.askpluginsdk.FunParam
 import com.fluxtah.askpluginsdk.io.getCurrentWorkingDirectory
 import com.fluxtah.askpluginsdk.logging.AskLogger
 import com.fluxtah.askpluginsdk.logging.LogLevel
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.apache.lucene.analysis.standard.StandardAnalyzer
@@ -692,6 +695,17 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
             return ListFunctionsResult.Error(e.message ?: "An error occurred")
         }
     }
+
+    @Fun("Search for kotlin declarations in an index including classes, functions, and properties by fuzzy name")
+    fun searchKotlinDeclarations(
+        @FunParam("The text to search the index with")
+        searchText: String
+    ) : SearchKotlinDeclarationsResult {
+        return SearchKotlinDeclarationsResult(KotlinDeclarationSearch().search(searchText))
+    }
+
+    @Serializable
+    data class SearchKotlinDeclarationsResult(val results: List<KotlinDeclaration>)
 }
 
 fun replaceLines(

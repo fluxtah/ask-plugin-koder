@@ -27,6 +27,8 @@ dependencies {
 
     implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:1.7.0")
 
+    implementation("io.methvin:directory-watcher:0.13.0")
+
     testImplementation(kotlin("test"))
     testImplementation("io.mockk:mockk:1.12.5")
     testImplementation("com.google.guava:guava:31.0.1-jre")

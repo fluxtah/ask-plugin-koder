@@ -156,4 +156,14 @@ class KoderFunctionsTest {
 
         assertEquals(expected, (result as ListFunctionsResult.Success))
     }
+
+    @Test
+    fun testSearchIndexedCode() {
+        val rootDir = File("src/test/resources")
+
+
+        val result = fn.searchIndexedCode("CommandFactory")
+
+        println(result)
+    }
 }
