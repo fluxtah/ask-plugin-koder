@@ -700,7 +700,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
     fun searchKotlinDeclarations(
         @FunParam("The text to search the index with")
         searchText: String
-    ) : SearchKotlinDeclarationsResult {
+    ): SearchKotlinDeclarationsResult {
         return SearchKotlinDeclarationsResult(KotlinDeclarationSearch().search(searchText))
     }
 
@@ -715,10 +715,13 @@ fun replaceLines(
     block: String
 ): List<String> {
     val blockLines = block.lines()
-    val startLineIndex = startLine.coerceAtLeast(0)
-    val endLine = startLineIndex + lineCount - 1 // Corrected to ensure it's inclusive
+    if (startLine < 1) {
+        throw IllegalArgumentException("Start line must be greater than 0")
+    }
+    val startLineIndex = (startLine - 1)
+    val endLineIndex = startLineIndex + lineCount - 1 // Corrected to ensure it's inclusive
 
-    lines.subList(startLineIndex, min(endLine + 1, lines.size)).clear()
+    lines.subList(startLineIndex, min(endLineIndex + 1, lines.size)).clear()
     lines.addAll(startLineIndex, blockLines)
     return lines
 }

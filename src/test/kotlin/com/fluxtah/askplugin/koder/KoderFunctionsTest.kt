@@ -51,12 +51,12 @@ class KoderFunctionsTest {
 
         val expected = """
         A
-        B
         H
         E
         L
         L
         O
+        D
         E
         F
         G
@@ -95,7 +95,6 @@ class KoderFunctionsTest {
         A
         B
         C
-        D
         H
         E
         L
