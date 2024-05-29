@@ -696,9 +696,9 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         }
     }
 
-    @Fun("Search for kotlin declarations in an index including classes, functions, and properties by fuzzy name")
+    @Fun("Search for kotlin declarations in an index including classes, functions, and properties by fuzzy name, returns a list of declarations and there start and end offsets in the file making an efficient way to access code blocks")
     fun searchKotlinDeclarations(
-        @FunParam("The text to search the index with")
+        @FunParam("The text to search the index with, this is a fuzzy search on declaration names")
         searchText: String
     ): SearchKotlinDeclarationsResult {
         return SearchKotlinDeclarationsResult(KotlinDeclarationSearch().search(searchText))

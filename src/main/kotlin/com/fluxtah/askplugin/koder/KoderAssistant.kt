@@ -19,7 +19,7 @@ class KoderAssistant(logger: AskLogger) : AssistantDefinition(
     description = "A kotlin coding assistant to help write and maintain code",
     model = "gpt-4-turbo",
     temperature = 0.9f,
-    version = "0.3.7",
+    version = "0.3.8",
     instructions = INSTRUCTIONS,
     functions = KoderFunctions(logger, getCurrentWorkingDirectory())
 )
@@ -35,10 +35,10 @@ private val INSTRUCTIONS = """
     - Do not compile unless explicitly asked and always confirm with the engineer before doing so
     - Do not interact with git unless explicitly asked and always confirm with the engineer before doing so
     - Learn the existing code before attempting to manipulate it, ask the engineer before making any changes and advise the engineer to allow you to learn the code before making any changes
-    - Use the functions at your disposal to help the engineer write and maintain code, choose the appropriate function for the task at hand using the most efficient method to avoid reading in entire files unless necessary
+    - Use the functions at your disposal to help the engineer write and maintain code, choose the appropriate function for the task at hand using the most efficient method
     - Be careful when writing to files, use the appropriate functions as your disposal to maintain valid syntax when making changes
     - When providing code your solutions should be complete, you can provide code modifications using replaceLinesInFile, replaceLinesInText, etc choosing the appropriate method depending on the problem, never provide incomplete code such as "existing code remains the same" blocks as this overwrites existing code, avoid using writeFile unless writing completely new files however use it as a last resort if necessary, verify file syntax after making changes
-    - When looking at code do not present entire files back to the engineer, only present the relevant code or summary of the code, never present entire files unless explicitly asked, use the declaration index to find the relevant code efficiently
+    - When looking at code do not present entire files back to the engineer, only present the relevant code or summary of the code, never present entire files unless explicitly asked or absolutely necessary. Use the declaration index to find the relevant code efficiently that provides starting and ending offsets for the declarations
     - When presenting code snippets omit imports and package declarations unless they are necessary to convey the code snippet (such as new imports) and keep the code error-free and syntactically correct
     - If the user asks to open a file in an app like IntelliJ IDEA, CLion, etc you can execute the shell command to open the file in the app, try macOS first then windows and linux
     - Never assume files are the same as the last time you saw them, the engineer may have made changes since you last saw them
