@@ -458,6 +458,7 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         gradleArgs: String
     ): String {
         val errorOut = ByteArrayOutputStream()
+        val output = ByteArrayOutputStream()
         return try {
             val projectDirectory = getSafeFile(projectDir)
             val connector = GradleConnector.newConnector().forProjectDirectory(projectDirectory)
@@ -467,14 +468,15 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
                 build.forTasks(*gradleTasks.split(" ").toTypedArray())
 
                 // Pass additional arguments
-                build.withArguments(*gradleArgs.split(" ").toTypedArray())
-                build.setStandardOutput(System.out)
+                build.withArguments(*(("$gradleArgs -q ").split(" ")).toTypedArray())
+                build.setStandardOutput(output)
                 build.setStandardError(errorOut)
                 build.run() // This will execute the build with the specified arguments
             }
             Json.encodeToString(
                 mapOf(
                     "success" to "true",
+                    "output" to output.toString()
                 )
             )
         } catch (e: Exception) {
@@ -502,18 +504,20 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
             val projectDirectory = getSafeFile(projectDir)
             val process = ProcessBuilder("make", makeTarget)
                 .directory(projectDirectory)
-                .redirectOutput(ProcessBuilder.Redirect.INHERIT)
-                .redirectError(ProcessBuilder.Redirect.PIPE)
+                .redirectErrorStream(true) // Redirects error stream to the output stream
                 .start()
+
+            val processOutput = process.inputStream.bufferedReader().readText()
             process.waitFor()
-            val error = process.errorStream.bufferedReader().readText()
-            if (error.isNotEmpty()) {
-                logger.log(LogLevel.ERROR, "Error executing make: $error")
+
+            if (process.exitValue() != 0) {
+                logger.log(LogLevel.ERROR, "Error executing make: $processOutput")
             }
+
             Json.encodeToString(
                 mapOf(
-                    "success" to "true",
-                    "error" to error
+                    "success" to (process.exitValue() == 0).toString(),
+                    "output" to processOutput
                 )
             )
         } catch (e: Exception) {
@@ -537,7 +541,6 @@ class KoderFunctions(val logger: AskLogger, private val baseDir: String) {
         shellCommand: String
     ): String {
         val errorOut = ByteArrayOutputStream()
-        val output = ByteArrayOutputStream()
         return try {
             val projectDirectory = getSafeFile(projectDir)
             val process = ProcessBuilder("sh", "-c", shellCommand)
