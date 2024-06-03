@@ -32,6 +32,10 @@ class KotlinDeclarationSearch {
     fun search(searchText: String): List<KotlinDeclaration> {
         buildIndex()
 
+        return searchIndex(searchText)
+    }
+
+    private fun searchIndex(searchText: String): MutableList<KotlinDeclaration> {
         val term = Term("name", searchText.lowercase())
         val query: Query = FuzzyQuery(term, 2)
         val reader = DirectoryReader.open(index)
@@ -53,7 +57,7 @@ class KotlinDeclarationSearch {
                     endOffset = d.get("endOffset").toInt()
                 )
             )
-           // println("Found: ${d.get("id")} ${d.get("name")} [${d.get("type")}] at ${d.get("startOffset")}-${d.get("endOffset")}")
+            // println("Found: ${d.get("id")} ${d.get("name")} [${d.get("type")}] at ${d.get("startOffset")}-${d.get("endOffset")}")
         }
         reader.close()
 
