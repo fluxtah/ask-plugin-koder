@@ -103,7 +103,6 @@ class KotlinDeclarationSearch {
                 val classDeclarations = decl.declarations
                 addDeclarations(fqn, writer, classDeclarations)
             }
-
         }
     }
 

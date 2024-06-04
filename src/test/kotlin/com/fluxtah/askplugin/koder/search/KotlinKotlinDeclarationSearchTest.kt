@@ -7,11 +7,17 @@
 package com.fluxtah.askplugin.koder.search
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class KotlinKotlinDeclarationSearchTest {
     @Test
-    fun test() {
+    fun searchDeclarations() {
         val search = KotlinDeclarationSearch()
-        search.search("AssistantsApi")
+        val results = search.search("AssistantsApi")
+
+        assertEquals(1, results.size)
+        assertTrue(results[0].fqPath.contains("AssistantsApi"))
+        assertEquals("AssistantsApi", results[0].name)
     }
 }
